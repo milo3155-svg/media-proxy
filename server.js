@@ -10,42 +10,50 @@ const PORT = process.env.PORT || 3000;
 
 app.get('/', async (req, res) => {
   const query = req.query.q || 'bad bunny';
-  const results = await searchMusic(query);
+  const results = await searchYouTube(query);
   res.json(results);
 });
 
 app.get('/api/search', async (req, res) => {
   const query = req.query.q || 'bad bunny';
-  const results = await searchMusic(query);
+  const results = await searchYouTube(query);
   res.json(results);
 });
 
-async function searchMusic(query) {
+async function searchYouTube(query) {
   try {
-    // API de Saavn para audio completo de alta fidelidad
-    const response = await axios.get(`https://saavn.me/api/search/songs?query=${encodeURIComponent(query)}&page=1&limit=20`, { timeout: 8000 });
+    // Instancia de Piped API para extraer contenido completo de YouTube
+    const response = await axios.get(`https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=music_songs`, { timeout: 9000 });
     
-    if (response.data && response.data.data && response.data.data.results) {
-      return response.data.data.results.map(item => {
-        // Seleccionar la mejor calidad de audio disponible
-        const downloadUrls = item.downloadUrl || [];
-        const bestAudio = downloadUrls.length > 0 ? downloadUrls[downloadUrls.length - 1].link : '';
-        
-        // Seleccionar la mejor calidad de portada
-        const images = item.image || [];
-        const bestImage = images.length > 0 ? images[images.length - 1].link : '';
+    if (response.data && response.data.items) {
+      const items = response.data.items.filter(i => i.type === 'stream');
+      
+      // Obtener URLs directas para los primeros resultados
+      const formattedResults = await Promise.all(items.slice(0, 15).map(async (item) => {
+        let streamUrl = '';
+        try {
+          const detail = await axios.get(`https://pipedapi.kavin.rocks/streams/${item.url.split('v=')[1]}`, { timeout: 5000 });
+          if (detail.data && detail.data.audioStreams && detail.data.audioStreams.length > 0) {
+            // Seleccionar el mejor stream de audio completo
+            streamUrl = detail.data.audioStreams[0].url;
+          }
+        } catch (e) {
+          // Fallback a reproductor directo
+        }
 
         return {
-          id: item.id || '',
-          title: item.name ? item.name.replace(/&quot;/g, '"').replace(/&amp;/g, '&') : 'Sin título',
-          author: item.primaryArtists || 'Artista',
-          thumbnailUrl: bestImage,
-          streamUrl: bestAudio
+          id: item.url ? item.url.split('v=')[1] : '',
+          title: item.title || 'Sin título',
+          author: item.uploaderName || 'Artista',
+          thumbnailUrl: item.thumbnail || '',
+          streamUrl: streamUrl
         };
-      });
+      }));
+
+      return formattedResults.filter(r => r.streamUrl !== '');
     }
   } catch (e) {
-    console.log('Error en búsqueda completa:', e.message);
+    console.log('Error en Piped API:', e.message);
   }
   return [];
 }
