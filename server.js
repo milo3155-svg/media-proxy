@@ -10,42 +10,49 @@ const PORT = process.env.PORT || 3000;
 
 app.get('/', async (req, res) => {
   const query = req.query.q || 'bad bunny';
-  const results = await searchSaavnV2(query);
+  const results = await searchWithFallback(query);
   res.json(results);
 });
 
 app.get('/api/search', async (req, res) => {
   const query = req.query.q || 'bad bunny';
-  const results = await searchSaavnV2(query);
+  const results = await searchWithFallback(query);
   res.json(results);
 });
 
-async function searchSaavnV2(query) {
+async function searchWithFallback(query) {
+  // Fuente 1: Deezer Public API
   try {
-    // API optimizada sin restricción de peticiones desde la nube
-    const response = await axios.get(`https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}&limit=20`, { timeout: 8000 });
-    
-    if (response.data && response.data.data && response.data.data.results) {
-      return response.data.data.results.map(item => {
-        const downloadUrls = item.downloadUrl || [];
-        // Toma el stream de audio MP3 completo de máxima calidad
-        const audioUrl = downloadUrls.length > 0 ? downloadUrls[downloadUrls.length - 1].url : '';
-        
-        const images = item.image || [];
-        const imageUrl = images.length > 0 ? images[images.length - 1].url : '';
-
-        return {
-          id: item.id || '',
-          title: item.name ? item.name.replace(/&quot;/g, '"').replace(/&amp;/g, '&') : 'Sin título',
-          author: item.artists && item.artists.primary && item.artists.primary.length > 0 ? item.artists.primary[0].name : 'Artista',
-          thumbnailUrl: imageUrl,
-          streamUrl: audioUrl
-        };
-      });
+    const response = await axios.get(`https://api.deezer.com/search?q=${encodeURIComponent(query)}`, { timeout: 6000 });
+    if (response.data && response.data.data && response.data.data.length > 0) {
+      return response.data.data.map(item => ({
+        id: item.id ? item.id.toString() : '',
+        title: item.title || 'Sin título',
+        author: item.artist ? item.artist.name : 'Artista',
+        thumbnailUrl: item.album ? item.album.cover_medium : '',
+        streamUrl: item.preview || ''
+      }));
     }
   } catch (e) {
-    console.log('Error en búsqueda v2:', e.message);
+    console.log('Fallo en Fuente 1 (Deezer):', e.message);
   }
+
+  // Fuente 2: Respaldo iTunes
+  try {
+    const response = await axios.get(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=20`, { timeout: 6000 });
+    if (response.data && response.data.results) {
+      return response.data.results.map(item => ({
+        id: item.trackId ? item.trackId.toString() : '',
+        title: item.trackName || 'Sin título',
+        author: item.artistName || 'Artista',
+        thumbnailUrl: item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '300x300bb') : '',
+        streamUrl: item.previewUrl || ''
+      }));
+    }
+  } catch (e) {
+    console.log('Fallo en Fuente 2 (iTunes):', e.message);
+  }
+
   return [];
 }
 
