@@ -10,50 +10,41 @@ const PORT = process.env.PORT || 3000;
 
 app.get('/', async (req, res) => {
   const query = req.query.q || 'bad bunny';
-  const results = await searchYouTube(query);
+  const results = await searchSaavnV2(query);
   res.json(results);
 });
 
 app.get('/api/search', async (req, res) => {
   const query = req.query.q || 'bad bunny';
-  const results = await searchYouTube(query);
+  const results = await searchSaavnV2(query);
   res.json(results);
 });
 
-async function searchYouTube(query) {
+async function searchSaavnV2(query) {
   try {
-    // Instancia de Piped API para extraer contenido completo de YouTube
-    const response = await axios.get(`https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=music_songs`, { timeout: 9000 });
+    // API optimizada sin restricción de peticiones desde la nube
+    const response = await axios.get(`https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}&limit=20`, { timeout: 8000 });
     
-    if (response.data && response.data.items) {
-      const items = response.data.items.filter(i => i.type === 'stream');
-      
-      // Obtener URLs directas para los primeros resultados
-      const formattedResults = await Promise.all(items.slice(0, 15).map(async (item) => {
-        let streamUrl = '';
-        try {
-          const detail = await axios.get(`https://pipedapi.kavin.rocks/streams/${item.url.split('v=')[1]}`, { timeout: 5000 });
-          if (detail.data && detail.data.audioStreams && detail.data.audioStreams.length > 0) {
-            // Seleccionar el mejor stream de audio completo
-            streamUrl = detail.data.audioStreams[0].url;
-          }
-        } catch (e) {
-          // Fallback a reproductor directo
-        }
+    if (response.data && response.data.data && response.data.data.results) {
+      return response.data.data.results.map(item => {
+        const downloadUrls = item.downloadUrl || [];
+        // Toma el stream de audio MP3 completo de máxima calidad
+        const audioUrl = downloadUrls.length > 0 ? downloadUrls[downloadUrls.length - 1].url : '';
+        
+        const images = item.image || [];
+        const imageUrl = images.length > 0 ? images[images.length - 1].url : '';
 
         return {
-          id: item.url ? item.url.split('v=')[1] : '',
-          title: item.title || 'Sin título',
-          author: item.uploaderName || 'Artista',
-          thumbnailUrl: item.thumbnail || '',
-          streamUrl: streamUrl
+          id: item.id || '',
+          title: item.name ? item.name.replace(/&quot;/g, '"').replace(/&amp;/g, '&') : 'Sin título',
+          author: item.artists && item.artists.primary && item.artists.primary.length > 0 ? item.artists.primary[0].name : 'Artista',
+          thumbnailUrl: imageUrl,
+          streamUrl: audioUrl
         };
-      }));
-
-      return formattedResults.filter(r => r.streamUrl !== '');
+      });
     }
   } catch (e) {
-    console.log('Error en Piped API:', e.message);
+    console.log('Error en búsqueda v2:', e.message);
   }
   return [];
 }
