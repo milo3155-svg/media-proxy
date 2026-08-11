@@ -17,7 +17,6 @@ app.get('/api/search', async (req, res) => {
   if (!query) return res.status(400).json({ error: 'Falta la consulta' });
 
   try {
-    // Búsqueda directa de videos en YouTube sin necesidad de API keys
     const videos = await YouTube.search(query, { limit: 15, type: 'video' });
 
     const results = videos.map(video => ({
@@ -25,8 +24,8 @@ app.get('/api/search', async (req, res) => {
       title: video.title || 'Sin título',
       author: video.channel ? video.channel.name : 'Artista',
       thumbnailUrl: video.thumbnail ? video.thumbnail.url : '',
-      // URL de reproducción completa a través de un relay de streaming público
-      streamUrl: `https://cobalt-api.kavin.rocks/stream?url=https://www.youtube.com/watch?v=${video.id}`
+      // Enlace directo de reproducción de audio completo
+      streamUrl: `https://invidious.nerdvpn.de/latest_version?id=${video.id}&itag=140`
     }));
 
     return res.json(results);
