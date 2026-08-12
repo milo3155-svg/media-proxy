@@ -1,7 +1,7 @@
 {
   "name": "media-proxy",
   "version": "1.0.0",
-  "description": "Proxy para streaming",
+  "description": "Proxy para streaming de audio",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -9,7 +9,7 @@
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
-    "axios": "^1.6.0",
-    "ytsr": "^3.8.3"
+    "ytsr": "^3.8.3",
+    "@distube/ytdl-core": "^4.13.5"
   }
 }
