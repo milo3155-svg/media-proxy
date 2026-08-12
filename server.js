@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const ytsr = require('ytsr');
+const ytdl = require('@distube/ytdl-core');
 
 const app = express();
 app.use(cors());
@@ -12,22 +13,45 @@ app.get('/api/search', async (req, res) => {
   if (!query) return res.status(400).json({ error: 'Falta la consulta' });
 
   try {
-    // Buscamos directamente en YouTube, que es la fuente más rápida
     const searchResults = await ytsr(query, { limit: 5 });
     const items = searchResults.items.filter(item => item.type === 'video').map(item => ({
       id: item.id,
       title: item.title,
       author: item.author?.name || 'Artista',
       thumbnailUrl: item.bestThumbnail?.url || '',
-      // Usaremos el ID para construir el stream
-      streamUrl: `https://www.youtube.com/watch?v=${item.id}`
+      // Pasamos una URL interna de nuestra propia API para resolver el stream de audio
+      streamUrl: `https://mi-media-proxy.onrender.com/api/stream?id=${item.id}`
     }));
 
     res.json(items);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error buscando en YouTube" });
+    console.error('Error en búsqueda:', error);
+    res.json([]);
   }
 });
 
-app.listen(PORT, () => console.log('Servidor proxy activo'));
+// Endpoint que entrega el flujo de audio directo
+app.get('/api/stream', async (req, res) => {
+  const videoId = req.query.id;
+  if (!videoId) return res.status(400).send('Falta el ID del video');
+
+  try {
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const info = await ytdl.getInfo(videoUrl);
+    
+    // Filtramos únicamente los formatos de solo audio de mayor calidad
+    const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
+    
+    if (audioFormats.length > 0) {
+      // Redirigimos al reproductor directamente al archivo de audio crudo
+      res.redirect(audioFormats[0].url);
+    } else {
+      res.status(404).send('No se encontró formato de audio');
+    }
+  } catch (error) {
+    console.error('Error extrayendo audio:', error);
+    res.status(500).send('Error procesando audio');
+  }
+});
+
+app.listen(PORT, () => console.log(`Servidor proxy de audio activo en puerto ${PORT}`));
