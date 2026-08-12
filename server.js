@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const YouTube = require('youtube-sr').default;
+const axios = require('axios');
 
 const app = express();
 app.use(cors());
@@ -24,14 +25,31 @@ app.get('/api/search', async (req, res) => {
       title: video.title || 'Sin título',
       author: video.channel ? video.channel.name : 'Artista',
       thumbnailUrl: video.thumbnail ? video.thumbnail.url : '',
-      // Enlace directo de reproducción de audio completo
-      streamUrl: `https://invidious.nerdvpn.de/latest_version?id=${video.id}&itag=140`
+      streamUrl: `https://mi-media-proxy.onrender.com/api/audio?id=${video.id}`
     }));
 
     return res.json(results);
   } catch (e) {
     console.log('Error en búsqueda:', e.message);
     res.status(500).json({ error: 'Error al buscar' });
+  }
+});
+
+// Endpoint proxy que resuelve la URL de audio nativa sin bloqueos
+app.get('/api/audio', async (req, res) => {
+  const videoId = req.query.id;
+  if (!videoId) return res.status(400).send('Falta ID');
+
+  try {
+    const response = await axios.get(`https://pipedapi.kavin.rocks/streams/${videoId}`, { timeout: 6000 });
+    if (response.data && response.data.audioStreams && response.data.audioStreams.length > 0) {
+      // Redirige directamente al flujo de audio de alta calidad de YouTube
+      return res.redirect(response.data.audioStreams[0].url);
+    }
+    res.status(404).send('Audio no disponible');
+  } catch (e) {
+    // Backup directo si falla la resolución de la instancia
+    res.redirect(`https://invidious.drgns.space/latest_version?id=${videoId}&itag=140`);
   }
 });
 
