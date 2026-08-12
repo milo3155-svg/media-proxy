@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const YouTube = require('youtube-sr').default;
 const axios = require('axios');
 
 const app = express();
@@ -10,7 +9,7 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-  res.send('Servidor Media Proxy YouTube Activo 🚀');
+  res.send('Servidor Media Proxy MP3 Activo 🚀');
 });
 
 app.get('/api/search', async (req, res) => {
@@ -18,39 +17,43 @@ app.get('/api/search', async (req, res) => {
   if (!query) return res.status(400).json({ error: 'Falta la consulta' });
 
   try {
-    const videos = await YouTube.search(query, { limit: 15, type: 'video' });
+    // API de búsqueda con transmisiones MP3 nativas y directas
+    const response = await axios.get(`https://discoveryprovider.audius.co/v1/tracks/search?query=${encodeURIComponent(query)}&app_name=MediaApp`, { timeout: 8000 });
 
-    const results = videos.map(video => ({
-      id: video.id || '',
-      title: video.title || 'Sin título',
-      author: video.channel ? video.channel.name : 'Artista',
-      thumbnailUrl: video.thumbnail ? video.thumbnail.url : '',
-      streamUrl: `https://mi-media-proxy.onrender.com/api/audio?id=${video.id}`
-    }));
+    if (response.data && response.data.data && response.data.data.length > 0) {
+      const results = response.data.data.slice(0, 15).map(track => ({
+        id: track.id || '',
+        title: track.title || 'Sin título',
+        author: track.user ? track.user.name : 'Artista',
+        thumbnailUrl: track.artwork ? track.artwork['150x150'] : '',
+        // Flujo directo MP3 que just_audio reproduce de forma instantánea
+        streamUrl: `https://discoveryprovider.audius.co/v1/tracks/${track.id}/stream?app_name=MediaApp`
+      }));
 
-    return res.json(results);
-  } catch (e) {
-    console.log('Error en búsqueda:', e.message);
-    res.status(500).json({ error: 'Error al buscar' });
-  }
-});
-
-// Endpoint proxy que resuelve la URL de audio nativa sin bloqueos
-app.get('/api/audio', async (req, res) => {
-  const videoId = req.query.id;
-  if (!videoId) return res.status(400).send('Falta ID');
-
-  try {
-    const response = await axios.get(`https://pipedapi.kavin.rocks/streams/${videoId}`, { timeout: 6000 });
-    if (response.data && response.data.audioStreams && response.data.audioStreams.length > 0) {
-      // Redirige directamente al flujo de audio de alta calidad de YouTube
-      return res.redirect(response.data.audioStreams[0].url);
+      return res.json(results);
     }
-    res.status(404).send('Audio no disponible');
   } catch (e) {
-    // Backup directo si falla la resolución de la instancia
-    res.redirect(`https://invidious.drgns.space/latest_version?id=${videoId}&itag=140`);
+    console.log('Error en búsqueda principal:', e.message);
   }
+
+  // Respaldo secundario si no hay coincidencias
+  try {
+    const backupRes = await axios.get(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=15`, { timeout: 6000 });
+    if (backupRes.data && backupRes.data.results) {
+      const results = backupRes.data.results.map(item => ({
+        id: item.trackId ? item.trackId.toString() : '',
+        title: item.trackName || 'Sin título',
+        author: item.artistName || 'Artista',
+        thumbnailUrl: item.artworkUrl100 || '',
+        streamUrl: item.previewUrl || ''
+      }));
+      return res.json(results);
+    }
+  } catch (e) {
+    console.log('Error en respaldo:', e.message);
+  }
+
+  res.json([]);
 });
 
 app.listen(PORT, () => {
