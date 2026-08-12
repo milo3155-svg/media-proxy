@@ -7,55 +7,56 @@ app.use(cors());
 
 const PORT = process.env.PORT || 3000;
 
-// Lista de hosts oficiales de la red Audius
-const AUDIUS_HOSTS = [
-  'https://discoveryprovider.audius.co',
-  'https://audius-dp.cultex.net',
-  'https://creatornode2.audius.co'
-];
+// API Key oficial y pública de Jamendo para desarrolladores
+const CLIENT_ID = '56d3042f';
 
-async function getAudiusHost() {
-  try {
-    const response = await axios.get('https://api.audius.co', { timeout: 3000 });
-    if (response.data && response.data.data && response.data.data.length > 0) {
-      return response.data.data[0];
-    }
-  } catch (e) {
-    console.log("Usando host Audius de respaldo...");
-  }
-  return AUDIUS_HOSTS[0];
-}
-
+// 1. BÚSQUEDA DE MÚSICA
 app.get('/api/search', async (req, res) => {
   const query = req.query.q;
   if (!query) return res.status(400).json({ error: 'Falta la consulta' });
 
   try {
-    const host = await getAudiusHost();
-    const response = await axios.get(`${host}/v1/tracks/search?query=${encodeURIComponent(query)}&app_name=MediaApp`, { timeout: 5000 });
+    const url = `https://api.jamendo.com/v3.0/tracks/?client_id=${CLIENT_ID}&format=json&limit=15&search=${encodeURIComponent(query)}&include=musicinfo`;
+    const response = await axios.get(url, { timeout: 6000 });
 
-    if (response.data && response.data.data) {
-      const results = response.data.data.map(track => {
-        // Enlace directo al stream de audio en MP3 de alta velocidad
-        const streamUrl = `${host}/v1/tracks/${track.id}/stream?app_name=MediaApp`;
-        const artwork = track.artwork ? track.artwork['150x150'] || track.artwork['480x480'] : '';
-
-        return {
-          id: track.id,
-          title: track.title || 'Sin título',
-          author: track.user?.name || 'Artista',
-          thumbnailUrl: artwork,
-          streamUrl: streamUrl
-        };
-      });
+    if (response.data && response.data.results) {
+      const results = response.data.results.map(track => ({
+        id: track.id,
+        title: track.name || 'Sin título',
+        author: track.artist_name || 'Artista',
+        thumbnailUrl: track.album_image || track.image || '',
+        // Apuntamos al endpoint interno de transmisión directa en Render
+        streamUrl: `https://mi-media-proxy.onrender.com/api/stream?url=${encodeURIComponent(track.audio)}`
+      }));
 
       return res.json(results);
     }
   } catch (error) {
-    console.error("Error en búsqueda Audius:", error.message);
+    console.error("Error en búsqueda Jamendo:", error.message);
   }
 
   res.json([]);
 });
 
-app.listen(PORT, () => console.log('Proxy Audius listo y activo'));
+// 2. TRANSMISIÓN DE AUDIO DIRECTA (FLUIDA Y RÁPIDA)
+app.get('/api/stream', async (req, res) => {
+  const audioUrl = req.query.url;
+  if (!audioUrl) return res.status(400).send('Falta la URL de audio');
+
+  try {
+    const audioResponse = await axios({
+      method: 'get',
+      url: audioUrl,
+      responseType: 'stream',
+      timeout: 10000
+    });
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    audioResponse.data.pipe(res);
+  } catch (error) {
+    console.error("Error transmitiendo audio:", error.message);
+    res.status(500).send('Error en transmisión de audio');
+  }
+});
+
+app.listen(PORT, () => console.log('Proxy Jamendo Stream activo'));
