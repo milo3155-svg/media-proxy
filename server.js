@@ -7,70 +7,39 @@ app.use(cors());
 
 const PORT = process.env.PORT || 3000;
 
-const PIPED_INSTANCES = [
-  'https://pipedapi.kavin.rocks',
-  'https://api.piped.private.coffee',
-  'https://pipedapi.mha.fi'
+// Lista de servidores ultra rápidos de Invidious
+const INSTANCES = [
+  'https://inv.nerdvpn.de',
+  'https://invidious.nerdvpn.de',
+  'https://vid.puppethead.com'
 ];
 
 app.get('/api/search', async (req, res) => {
   const query = req.query.q;
   if (!query) return res.status(400).json({ error: 'Falta la consulta' });
 
-  for (const instance of PIPED_INSTANCES) {
+  for (const instance of INSTANCES) {
     try {
-      const response = await axios.get(`${instance}/search?q=${encodeURIComponent(query)}&filter=music_songs`, { timeout: 4000 });
+      const response = await axios.get(`${instance}/api/v1/search?q=${encodeURIComponent(query)}&type=video`, { timeout: 4000 });
       
-      if (response.data && response.data.items && response.data.items.length > 0) {
-        const results = response.data.items.slice(0, 15).map(item => {
-          const videoId = item.url ? item.url.replace('/watch?v=', '') : '';
-          return {
-            id: videoId,
-            title: item.title || 'Sin título',
-            author: item.uploaderName || 'Artista',
-            thumbnailUrl: item.thumbnail || '',
-            streamUrl: `https://mi-media-proxy.onrender.com/api/stream?id=${videoId}`
-          };
-        });
+      if (response.data && response.data.length > 0) {
+        const results = response.data.slice(0, 10).map(item => ({
+          id: item.videoId,
+          title: item.title || 'Sin título',
+          author: item.author || 'Artista',
+          thumbnailUrl: item.videoThumbnails ? item.videoThumbnails[0]?.url : '',
+          // Enlace directo al stream de audio en el servidor de Invidious (sin sobrecargar Render)
+          streamUrl: `${instance}/latest_version?id=${item.videoId}&italic=1&itag=140`
+        }));
 
         return res.json(results);
       }
     } catch (e) {
-      console.log(`Error buscando en ${instance}`);
+      console.log(`Instancia falló, probando siguiente...`);
     }
   }
 
   res.json([]);
 });
 
-// TRANSMISIÓN DIRECTA (SIN REDIRECCIÓN)
-app.get('/api/stream', async (req, res) => {
-  const videoId = req.query.id;
-  if (!videoId) return res.status(400).send('Falta el ID');
-
-  for (const instance of PIPED_INSTANCES) {
-    try {
-      const response = await axios.get(`${instance}/streams/${videoId}`, { timeout: 4000 });
-      
-      if (response.data && response.data.audioStreams && response.data.audioStreams.length > 0) {
-        const audioUrl = response.data.audioStreams[0].url;
-        
-        // Render solicita el audio y lo canaliza directo a la app
-        const audioStream = await axios({
-          method: 'get',
-          url: audioUrl,
-          responseType: 'stream'
-        });
-
-        res.setHeader('Content-Type', 'audio/mpeg');
-        return audioStream.data.pipe(res);
-      }
-    } catch (e) {
-      console.log(`Error obteniendo stream en ${instance}`);
-    }
-  }
-
-  res.status(500).send('No se pudo obtener el audio');
-});
-
-app.listen(PORT, () => console.log('Proxy de audio directo activo'));
+app.listen(PORT, () => console.log('Proxy liviano listo'));
