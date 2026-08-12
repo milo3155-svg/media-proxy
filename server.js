@@ -9,48 +9,50 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-  res.send('Servidor Media Proxy MP3 Activo 🚀');
+  res.send('Servidor Media Proxy MP3 Directo Activo 🚀');
 });
 
 app.get('/api/search', async (req, res) => {
   const query = req.query.q;
   if (!query) return res.status(400).json({ error: 'Falta la consulta' });
 
+  // Fuente 1: Jamendo API (Servidor de MP3 directos y limpios)
   try {
-    // API de búsqueda con transmisiones MP3 nativas y directas
-    const response = await axios.get(`https://discoveryprovider.audius.co/v1/tracks/search?query=${encodeURIComponent(query)}&app_name=MediaApp`, { timeout: 8000 });
+    const jamendoRes = await axios.get(`https://api.jamendo.com/v3.0/tracks/?client_id=56d3042f&format=json&limit=15&search=${encodeURIComponent(query)}`, { timeout: 6000 });
+    
+    if (jamendoRes.data && jamendoRes.data.results && jamendoRes.data.results.length > 0) {
+      const results = jamendoRes.data.results.map(track => ({
+        id: track.id || '',
+        title: track.name || 'Sin título',
+        author: track.artist_name || 'Artista',
+        thumbnailUrl: track.album_image || track.image || '',
+        // Audio MP3 directo
+        streamUrl: track.audio || ''
+      }));
 
-    if (response.data && response.data.data && response.data.data.length > 0) {
-      const results = response.data.data.slice(0, 15).map(track => ({
+      return res.json(results);
+    }
+  } catch (e) {
+    console.log('Error en Fuente 1 (Jamendo):', e.message);
+  }
+
+  // Fuente 2: Audius Provider (Respaldo secundario MP3)
+  try {
+    const audiusRes = await axios.get(`https://discoveryprovider.audius.co/v1/tracks/search?query=${encodeURIComponent(query)}&app_name=MediaApp`, { timeout: 6000 });
+
+    if (audiusRes.data && audiusRes.data.data && audiusRes.data.data.length > 0) {
+      const results = audiusRes.data.data.slice(0, 15).map(track => ({
         id: track.id || '',
         title: track.title || 'Sin título',
         author: track.user ? track.user.name : 'Artista',
         thumbnailUrl: track.artwork ? track.artwork['150x150'] : '',
-        // Flujo directo MP3 que just_audio reproduce de forma instantánea
         streamUrl: `https://discoveryprovider.audius.co/v1/tracks/${track.id}/stream?app_name=MediaApp`
       }));
 
       return res.json(results);
     }
   } catch (e) {
-    console.log('Error en búsqueda principal:', e.message);
-  }
-
-  // Respaldo secundario si no hay coincidencias
-  try {
-    const backupRes = await axios.get(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=15`, { timeout: 6000 });
-    if (backupRes.data && backupRes.data.results) {
-      const results = backupRes.data.results.map(item => ({
-        id: item.trackId ? item.trackId.toString() : '',
-        title: item.trackName || 'Sin título',
-        author: item.artistName || 'Artista',
-        thumbnailUrl: item.artworkUrl100 || '',
-        streamUrl: item.previewUrl || ''
-      }));
-      return res.json(results);
-    }
-  } catch (e) {
-    console.log('Error en respaldo:', e.message);
+    console.log('Error en Fuente 2 (Audius):', e.message);
   }
 
   res.json([]);
