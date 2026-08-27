@@ -7,32 +7,29 @@ app.use(cors());
 
 const PORT = process.env.PORT || 3000;
 
-const PIPED_API = 'https://api.piped.projectsegfau.lt';
+// EL CEREBRO HÍBRIDO: Dos fuentes distintas para que no nos bloqueen
+const SEARCH_API = 'https://vid.puffyan.us/api/v1/search'; // Para buscar
+const STREAM_API = 'https://api.piped.projectsegfau.lt/streams'; // Para reproducir
 
-// 1. ENDPOINT DE BÚSQUEDA ROBUSTO
+// 1. ENDPOINT DE BÚSQUEDA (Conectado a Invidious)
 app.get('/api/search', async (req, res) => {
     const query = req.query.q;
     if (!query) return res.json([]);
 
     try {
-        const response = await axios.get(`${PIPED_API}/search?q=${encodeURIComponent(query)}&filter=all`, { timeout: 10000 });
+        const response = await axios.get(`${SEARCH_API}?q=${encodeURIComponent(query)}`, { timeout: 10000 });
         
-        // Aceptamos tanto .items como si viene directo en un array
-        const rawItems = response.data.items || (Array.isArray(response.data) ? response.data : []);
-
-        if (rawItems.length > 0) {
-            const results = rawItems
-                .filter(item => item.type === 'stream' || item.url) // Filtramos videos/canciones
+        // Invidious devuelve un arreglo directo
+        if (Array.isArray(response.data) && response.data.length > 0) {
+            const results = response.data
+                .filter(item => item.type === 'video') // Solo videos musicales
                 .slice(0, 15)
-                .map(item => {
-                    const videoId = item.url ? item.url.split('v=')[1] : (item.videoId || 'desconocido');
-                    return {
-                        id: videoId,
-                        title: item.title || 'Sin título',
-                        author: item.uploaderName || item.uploader || 'Artista',
-                        thumbnailUrl: item.thumbnail || item.thumbnailUrl || ''
-                    };
-                });
+                .map(item => ({
+                    id: item.videoId,
+                    title: item.title,
+                    author: item.author,
+                    thumbnailUrl: item.videoThumbnails ? item.videoThumbnails[0].url : ''
+                }));
             return res.json(results);
         }
         return res.json([]);
@@ -42,16 +39,17 @@ app.get('/api/search', async (req, res) => {
     }
 });
 
-// 2. ENDPOINT DE REPRODUCCIÓN
+// 2. ENDPOINT DE REPRODUCCIÓN (Conectado a Piped)
 app.get('/api/stream', async (req, res) => {
     const videoId = req.query.id;
     if (!videoId) return res.status(400).json({ error: 'Falta el ID' });
 
     try {
-        const response = await axios.get(`${PIPED_API}/streams/${videoId}`, { timeout: 10000 });
+        const response = await axios.get(`${STREAM_API}/${videoId}`, { timeout: 10000 });
         
         const audioStreams = response.data.audioStreams || [];
         if (audioStreams.length > 0) {
+            // Buscamos el mejor formato mp4 de audio
             const audio = audioStreams.find(s => s.mimeType && s.mimeType.includes('audio/mp4')) 
                           || audioStreams[0];
             return res.json({ url: audio.url });
@@ -63,4 +61,4 @@ app.get('/api/stream', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => console.log('Proxy de música conectado y optimizado 🚀'));
+app.listen(PORT, () => console.log('Proxy híbrido conectado y blindado 🚀'));
