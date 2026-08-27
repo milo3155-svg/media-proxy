@@ -8,7 +8,7 @@ app.use(cors());
 const PORT = process.env.PORT || 3000;
 
 // API pública para extraer info de audio sin bloqueos
-const PIPED_API = 'https://pipedapi.smnz.de';
+const PIPED_API = 'https://pipedapi.tokhmi.xyz';
 // 1. ENDPOINT DE BÚSQUEDA
 app.get('/api/search', async (req, res) => {
     const query = req.query.q;
