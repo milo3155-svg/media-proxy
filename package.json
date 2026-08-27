@@ -1,14 +1,16 @@
 {
   "name": "media-proxy",
   "version": "1.0.0",
-  "description": "Proxy para streaming de audio",
+  "description": "Proxy para streaming optimizado",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "@distube/ytdl-core": "^4.16.4",
+    "axios": "^1.6.0",
     "cors": "^2.8.5",
-    "axios": "^1.6.0"
+    "express": "^4.18.2",
+    "youtube-sr": "^4.3.4"
   }
 }
