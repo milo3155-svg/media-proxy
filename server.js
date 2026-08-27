@@ -1,62 +1,60 @@
 const express = require('express');
 const cors = require('cors');
-const axios = require('axios');
+const YouTube = require('youtube-sr').default;
+const ytdl = require('@distube/ytdl-core'); // Extractor directo de alta estabilidad
 
 const app = express();
 app.use(cors());
 
 const PORT = process.env.PORT || 3000;
 
-// Búsqueda directa ultra rápida usando una API ligera de respaldo
+// 1. ENDPOINT DE BÚSQUEDA (Autónomo con YouTube-SR)
 app.get('/api/search', async (req, res) => {
     const query = req.query.q;
     if (!query) return res.json([]);
 
     try {
-        // Usamos la API de NewPipeextractor pública de respaldo
-        const response = await axios.get(`https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=videos`, { timeout: 8000 });
-        const items = response.data.items || [];
+        // Búsqueda directa sin depender de APIs de terceros caídas
+        const results = await YouTube.search(query, { limit: 15, type: 'video' });
         
-        const results = items.slice(0, 15).map(item => ({
-            id: item.url ? item.url.split('v=')[1] : item.videoId,
-            title: item.title,
-            author: item.uploaderName || 'Artista',
-            thumbnailUrl: item.thumbnail
+        const formattedResults = results.map(video => ({
+            id: video.id,
+            title: video.title,
+            author: video.channel ? video.channel.name : 'Artista',
+            thumbnailUrl: video.thumbnail ? video.thumbnail.url : ''
         }));
 
-        return res.json(results);
+        return res.json(formattedResults);
     } catch (error) {
-        // Si kavin falla temporalmente, usamos un fallback inteligente con búsqueda en Invidious direct
-        try {
-            const fallback = await axios.get(`https://invidious.projectsegfau.lt/api/v1/search?q=${encodeURIComponent(query)}`, { timeout: 8000 });
-            const results = fallback.data.slice(0, 15).map(item => ({
-                id: item.videoId,
-                title: item.title,
-                author: item.author,
-                thumbnailUrl: item.videoThumbnails ? item.videoThumbnails[0].url : ''
-            }));
-            return res.json(results);
-        } catch (err) {
-            return res.json([]);
-        }
+        console.error("Error en búsqueda interna:", error.message);
+        return res.status(500).json([{ title: 'Error de búsqueda', author: 'Reintenta' }]);
     }
 });
 
+// 2. ENDPOINT DE REPRODUCCIÓN (Extracción directa con ytdl-core)
 app.get('/api/stream', async (req, res) => {
     const videoId = req.query.id;
-    if (!videoId) return res.status(400).json({ error: 'Falta el ID' });
+    if (!videoId) return res.status(400).json({ error: 'Falta el ID del video' });
 
     try {
-        const response = await axios.get(`https://pipedapi.kavin.rocks/streams/${videoId}`, { timeout: 8000 });
-        const audioStreams = response.data.audioStreams || [];
-        const audio = audioStreams.find(s => s.mimeType && s.mimeType.includes('audio/mp4')) || audioStreams[0];
-        if (audio && audio.url) {
-            return res.json({ url: audio.url });
+        const videoURL = `https://www.youtube.com/watch?v=${videoId}`;
+        
+        // Verificamos que el video sea válido y accesible
+        const info = await ytdl.getInfo(videoURL);
+        
+        // Filtramos estrictamente los formatos que contengan solo audio de alta calidad
+        const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
+        
+        if (audioFormats && audioFormats.length > 0) {
+            // Tomamos el primer formato de audio disponible con URL directa
+            return res.json({ url: audioFormats[0].url });
         }
-        return res.status(404).json({ error: 'No se encontró audio' });
+
+        return res.status(404).json({ error: 'No se encontró un enlace de audio válido' });
     } catch (error) {
-        return res.status(500).json({ error: 'Fallo al obtener enlace' });
+        console.error("Error crítico en stream:", error.message);
+        return res.status(500).json({ error: 'Fallo al procesar el audio en el servidor' });
     }
 });
 
-app.listen(PORT, () => console.log('Proxy final listo 🚀'));
+app.listen(PORT, () => console.log('Backend autónomo y optimizado conectado 🚀'));
