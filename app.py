@@ -16,10 +16,14 @@ def extraer_audio():
     url = f"https://www.youtube.com/watch?v={video_id}"
     
     ydl_opts = {
-        'format': 'bestaudio/best',
-        'quiet': True,
-        'no_warnings': True,
-    }
+    ydl_opts = {
+    'format': 'bestaudio/best',
+    'extractaudio': True,
+    'audioformat': 'mp3',
+    'outtmpl': '%(id)s.%(ext)s',
+    'quiet': True,
+    'extractor_args': {'youtube': {'player_client': ['android', 'web']}}
+}
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
