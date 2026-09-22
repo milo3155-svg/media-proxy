@@ -16,7 +16,6 @@ def extraer_audio():
     url = f"https://www.youtube.com/watch?v={video_id}"
     
     ydl_opts = {
-    ydl_opts = {
     'format': 'bestaudio/best',
     'extractaudio': True,
     'audioformat': 'mp3',
