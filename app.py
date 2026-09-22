@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 import yt_dlp
 
-app = Flask(_name_)
+app = Flask(__name__)
 
 @app.route('/')
 def home():
