@@ -21,7 +21,7 @@ def extraer_audio():
     'audioformat': 'mp3',
     'outtmpl': '%(id)s.%(ext)s',
     'quiet': True,
-    'extractor_args': {'youtube': {'player_client': ['android', 'web']}}
+    'extractor_args': {'youtube': {'player_client': ['ios', 'android_creator', 'tv']}}
 }
     
     try:
