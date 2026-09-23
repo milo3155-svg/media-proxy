@@ -16,12 +16,12 @@ def extraer_audio():
     url = f"https://www.youtube.com/watch?v={video_id}"
   #cambio de comillas  
     ydl_opts = {
-"format": "bestaudio/best",
-"extractaudio": True,
-"audioformat": "mp3",
-"outtmpl": "%(id)s.%(ext)s",
-"quiet": True,
-"extractor_args": {"youtube": {"player_client": ["tv", "mweb"]}}
+'format': 'bestaudio/best',
+'extractaudio': True,
+'audioformat': 'mp3',
+'outtmpl': '%(id)s.%(ext)s',
+'quiet': True,
+'extractor_args': {'youtube': {'player_client': ['tv', 'mweb']}}
 }
     
     try:
