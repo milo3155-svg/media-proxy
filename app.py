@@ -22,7 +22,7 @@ def extraer_audio():
     'outtmpl': '%(id)s.%(ext)s',
     'quiet': True,
     'cookiefile':'cookies.txt',
-    'extractor_args': {'youtube': {'player_client': ['ios', 'tv', 'web']}}
+    'extractor_args': {'youtube': {'player_client': ['android', 'tv', 'web']}}
 }
     
     try:
