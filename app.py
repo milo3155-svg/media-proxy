@@ -16,13 +16,12 @@ def extraer_audio():
     url = f"https://www.youtube.com/watch?v={video_id}"
     
     ydl_opts = {
-    'format': 'bestaudio/best',
-    'extractaudio': True,
-    'audioformat': 'mp3',
-    'outtmpl': '%(id)s.%(ext)s',
-    'quiet': True,
-    'cookiefile':'cookies.txt',
-    'http_headers': {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36'}
+'format': 'bestaudio/best',
+'extractaudio': True,
+'audioformat': 'mp3',
+'outtmpl': '%(id)s.%(ext)s',
+'quiet': True,
+'extractor_args': {'youtube': {'player_client': ['tv', 'mweb']}}
 }
     
     try:
