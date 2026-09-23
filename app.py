@@ -21,7 +21,7 @@ def extraer_audio():
 'audioformat': 'mp3',
 'outtmpl': '%(id)s.%(ext)s',
 'quiet': True,
-'cookiefile':'cookies.txt',
+'username':'oauth2',
 'extractor_args': {'youtube': {'player_client': ['tv', 'mweb']}}
 }
     
